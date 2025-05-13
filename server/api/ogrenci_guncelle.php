@@ -12,7 +12,7 @@ try {
     $user = authorize();
     
     // Upload klasörünü kontrol et ve oluştur
-    $uploadDir = '../../uploads/avatars/';
+    $uploadDir = '../../avatar/';
     if (!file_exists($uploadDir)) {
         if (!mkdir($uploadDir, 0755, true)) {
             errorResponse('Upload dizini oluşturulamadı', 500);
@@ -33,7 +33,7 @@ try {
     }
     
     // Dosya boyutunu kontrol et (2MB max)
-    $maxFileSize = 2 * 1024 * 1024; // 2MB
+    $maxFileSize = 8 * 1024 * 1024; // 2MB
     if ($_FILES['avatar']['size'] > $maxFileSize) {
         errorResponse('Dosya boyutu en fazla 2MB olabilir', 400);
     }
@@ -52,7 +52,7 @@ try {
     $conn = getConnection();
     $stmt = $conn->prepare("UPDATE ogrenciler SET avatar = :avatar WHERE id = :id");
     
-    $avatarPath = 'uploads/avatars/' . $newFileName;
+    $avatarPath = 'avatar/' . $newFileName;
     $stmt->bindParam(':avatar', $avatarPath);
     $stmt->bindParam(':id', $user['id']);
     $stmt->execute();

@@ -13,28 +13,28 @@ if (strpos($requestUri, $basePath) === 0) {
     
     // Endpoint'e göre yönlendirme
     switch ($endpoint) {
-        case 'register':
-            require_once 'api/register.php';
+        case 'ogrenci_kayit':
+            require_once 'api/ogrenci_kayit.php';
             break;
             
-        case 'login':
-            require_once 'api/login.php';
+        case 'ogrenci_girisi':
+            require_once 'api/ogrenci_girisi.php';
             break;
             
-        case 'student':
-            require_once 'api/student.php';
+        case 'yonetici_bilgileri':
+            require_once 'api/yonetici_bilgileri.php';
             break;
             
-        case 'update_profile':
-            require_once 'api/update_profile.php';
+        case 'ogrenci_bilgileri':
+            require_once 'api/ogrenci_bilgileri.php';
             break;
             
-        case 'admin':
-            require_once 'api/admin.php';
+        case 'ogrenci_profil':
+            require_once 'api/ogrenci_profil.php';
             break;
             
-        case 'upload':
-            require_once 'api/upload.php';
+        case 'ogrenci_guncelle':
+            require_once 'api/ogrenci_guncelle.php';
             break;
             
         default:
