@@ -65,7 +65,7 @@ export class GirisSayfasiComponent implements OnInit {
     };
 
     // Send to server
-    this.http.post<any>('./server/api/login.php', loginData).subscribe({
+    this.http.post<any>('./server/api/ogrenci_girisi.php', loginData).subscribe({
       next: (response) => {
         if (response.success) {
           // Show success message

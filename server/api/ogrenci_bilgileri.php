@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $studentDetails = $stmt->fetch(PDO::FETCH_ASSOC);
         
         // Sonuçları birleştir
-        $result = array_merge($student, ['bilgiler' => $studentDetails]);
+        $result = array_merge($student, $studentDetails);
         
         successResponse($result);
         

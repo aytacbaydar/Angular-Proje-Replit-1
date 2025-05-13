@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
+import { ToastrService } from 'ngx-toastr';
 
 @Component({
   selector: 'app-kayit-sayfasi',
@@ -34,7 +35,8 @@ export class KayitSayfasiComponent implements OnInit {
   constructor(
     private fb: FormBuilder,
     private http: HttpClient,
-    private router: Router
+    private router: Router,
+    private toast: ToastrService
   ) {}
   ngOnInit(): void {
     this.registrationForm = this.fb.group({
@@ -185,24 +187,35 @@ export class KayitSayfasiComponent implements OnInit {
     formData.append('avatar', this.selectedFile);
 
     // Send to server
-    this.http.post<any>('./server/api/register.php', formData).subscribe({
+    this.http.post<any>('./server/api/ogrenci_kayit.php', formData).subscribe({
       next: (response) => {
         if (response.success) {
-          this.showNotification(
+          
+          this.toast.success(
             'Başarılı',
             response.message || 'Öğrenci kaydınız başarıyla alındı!',
-            'success'
+            {
+              timeOut: 3000,
+              progressBar: true,
+              closeButton: true,
+            }
           );
+          this.isSubmitting = false;
+            
 
           // Navigate to confirmation after delay
           setTimeout(() => {
             this.router.navigate(['/onay-sayfasi']);
           }, 1500);
         } else {
-          this.showNotification(
+          this.toast.error(
             'Hata',
             response.message || 'Kayıt işlemi başarısız oldu',
-            'error'
+            {
+              timeOut: 3000,
+              progressBar: true,
+              closeButton: true,
+            }
           );
           this.isSubmitting = false;
         }
@@ -216,8 +229,11 @@ export class KayitSayfasiComponent implements OnInit {
           errorMsg = error.message;
         }
 
-        this.showNotification('Hata', errorMsg, 'error');
-        console.error('Registration error:', error);
+        this.toast.error('Hata', errorMsg, {
+          timeOut: 3000,
+          progressBar: true,
+          closeButton: true,
+        });
         this.isSubmitting = false;
       },
       complete: () => {
@@ -230,19 +246,4 @@ export class KayitSayfasiComponent implements OnInit {
     this.router.navigate(['/giris-sayfasi']);
   }
 
-  showNotification(
-    title: string,
-    message: string,
-    type: 'success' | 'error'
-  ): void {
-    this.toastTitle = title;
-    this.toastMessage = message;
-    this.toastType = type;
-    this.showToast = true;
-
-    // Auto-hide toast after 5 seconds
-    setTimeout(() => {
-      this.showToast = false;
-    }, 5000);
-  }
 }

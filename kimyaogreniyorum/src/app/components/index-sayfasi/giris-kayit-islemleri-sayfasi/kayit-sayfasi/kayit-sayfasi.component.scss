@@ -658,7 +658,7 @@
     right: 30px;
     padding: 16px;
     border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 8px rgba(124, 124, 124, 0.3);
     background: #333;
     min-width: 300px;
     max-width: 400px;
@@ -691,7 +691,7 @@
     font-size: 24px;
 
     &.success {
-        color: #4CAF50;
+        color: #29303c;
     }
 
     &.error {
@@ -705,7 +705,6 @@
     h4 {
         margin: 0 0 5px;
         font-size: 16px;
-        font-weight: 600;
         color: #fff;
     }
 
