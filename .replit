@@ -13,4 +13,4 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd server && npm run dev"
+args = "cd kimyaogreniyorum && npm install && npm start"

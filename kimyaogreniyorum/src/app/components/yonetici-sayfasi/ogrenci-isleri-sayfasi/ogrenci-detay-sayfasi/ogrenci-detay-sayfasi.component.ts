@@ -1,308 +1,198 @@
-import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
-import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, Validators } from '@angular/forms';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { NgxSpinnerService } from 'ngx-spinner';
+import { ToastrService } from 'ngx-toastr';
 
 @Component({
   selector: 'app-ogrenci-detay-sayfasi',
-  standalone: false,
   templateUrl: './ogrenci-detay-sayfasi.component.html',
-  styleUrl: './ogrenci-detay-sayfasi.component.scss',
+  styleUrls: ['./ogrenci-detay-sayfasi.component.scss']
 })
 export class OgrenciDetaySayfasiComponent implements OnInit {
-  studentId: number = 1;
-  student: any = null;
-  editForm!: FormGroup;
-  isLoading: boolean = true;
-  isSubmitting: boolean = false;
-  error: string | null = null;
-  success: string | null = null;
-  selectedFile: File | null = null;
+  ogrenci: any = null;
+  ogrenciForm: FormGroup;
+  isSubmitting = false;
+  showPassword = false;
+  ogrenciId: number;
+  avatarPreview: string | null = null;
+  avatarFile: File | null = null;
 
   constructor(
     private http: HttpClient,
+    private fb: FormBuilder,
     private route: ActivatedRoute,
     private router: Router,
-    private fb: FormBuilder
-  ) {}
+    private spinner: NgxSpinnerService,
+    private toastr: ToastrService
+  ) {
+    this.ogrenciId = 0;
+    this.ogrenciForm = this.fb.group({
+      // Temel Bilgiler
+      adi_soyadi: ['', Validators.required],
+      email: ['', [Validators.required, Validators.email]],
+      sifre: [''],
+      rutbe: ['ogrenci'],
+      aktif: [true],
+
+      // Detay Bilgiler
+      telefon: [''],
+      sinif: [''],
+      okul: [''],
+      adres: [''],
+      dogum_tarihi: [''],
+      avatar: ['']
+    });
+  }
 
   ngOnInit(): void {
-    this.initForm();
-
-    this.route.paramMap.subscribe((params) => {
-      const id = params.get('id');
-      if (id) {
-        this.studentId = +id;
-        this.loadStudentData();
-      } else {
-        this.isLoading = false;
-        this.error = 'Öğrenci ID bulunamadı.';
-      }
+    this.spinner.show();
+    this.route.params.subscribe(params => {
+      this.ogrenciId = +params['id'];
+      this.loadOgrenciData();
     });
   }
 
-  initForm(): void {
-    this.editForm = this.fb.group(
-      {
-        // Temel bilgiler
-        adi_soyadi: ['', Validators.required],
-        email: ['', [Validators.required, Validators.email]],
-        cep_telefonu: [''],
-        aktif: [true],
-        sifre: [''],
-        sifre_tekrar: [''],
-
-        // Eğitim bilgileri
-        okulu: [''],
-        sinifi: [''],
-        grubu: [''],
-        ders_gunu: [''],
-        ders_saati: [''],
-        ucret: [''],
-
-        // Veli bilgileri
-        veli_adi: [''],
-        veli_cep: [''],
-      },
-      { validators: this.passwordMatchValidator }
-    );
-  }
-
-  passwordMatchValidator(control: AbstractControl): ValidationErrors | null {
-    const password = control.get('sifre');
-    const confirmPassword = control.get('sifre_tekrar');
-
-    if (
-      password &&
-      confirmPassword &&
-      password.value &&
-      password.value !== confirmPassword.value
-    ) {
-      return { passwordMismatch: true };
-    }
-
-    return null;
-  }
-
-  loadStudentData(): void {
-    this.isLoading = true;
-    this.error = null;
-
-    // LocalStorage veya sessionStorage'dan token'ı al
-    let token = '';
-    const userStr =
-      localStorage.getItem('user') || sessionStorage.getItem('user');
-    if (userStr) {
-      const user = JSON.parse(userStr);
-      token = user.token || '';
-    }
-
-    const headers = new HttpHeaders({
-      Authorization: `Bearer ${token}`,
-    });
-
-    this.http
-      .get<any>(`./server/api/ogrenci_bilgileri.php?id=${this.studentId}`, { headers })
+  loadOgrenciData(): void {
+    this.http.get<any>(`/server/api/ogrenci_bilgileri.php?id=${this.ogrenciId}`)
       .subscribe({
         next: (response) => {
-          if (response.success) {
-            this.student = response.data;
+          if (response.success && response.data) {
+            this.ogrenci = response.data;
 
-            // Form'u doldur
-            this.editForm.patchValue({
-              // Temel bilgiler
-              adi_soyadi: this.student.adi_soyadi || '',
-              email: this.student.email || '',
-              cep_telefonu: this.student.cep_telefonu || '',
-              aktif: this.student.aktif || true,
+            // Form'a verileri doldur
+            const temelBilgiler = response.data.temel_bilgiler;
+            const detayBilgiler = response.data.detay_bilgiler || {};
 
-              // Eğitim bilgileri
-              okulu: this.student.okulu || '',
-              sinifi: this.student.sinifi || '',
-              grubu: this.student.grubu || '',
-              ders_gunu: this.student.ders_gunu || '',
-              ders_saati: this.student.ders_saati || '',
-              ucret: this.student.ucret || '',
+            this.ogrenciForm.patchValue({
+              // Temel Bilgiler
+              adi_soyadi: temelBilgiler.adi_soyadi,
+              email: temelBilgiler.email,
+              rutbe: temelBilgiler.rutbe,
+              aktif: temelBilgiler.aktif === 1,
 
-              // Veli bilgileri
-              veli_adi: this.student.veli_adi || '',
-              veli_cep: this.student.veli_cep || '',
+              // Detay Bilgiler
+              telefon: detayBilgiler.telefon || '',
+              sinif: detayBilgiler.sinif || '',
+              okul: detayBilgiler.okul || '',
+              adres: detayBilgiler.adres || '',
+              dogum_tarihi: detayBilgiler.dogum_tarihi || ''
             });
 
-            this.isLoading = false;
+            // Avatar önizleme
+            if (detayBilgiler.avatar) {
+              this.avatarPreview = detayBilgiler.avatar;
+            }
           } else {
-            this.isLoading = false;
-            this.error = response.error || 'Öğrenci bilgileri alınamadı.';
+            this.toastr.error('Öğrenci bilgileri yüklenemedi', 'Hata');
           }
+          this.spinner.hide();
         },
         error: (error) => {
-          this.isLoading = false;
-          this.error =
-            'Bağlantı hatası: ' +
-            (error.message || 'Bilinmeyen bir hata oluştu.');
-        },
-      });
-  }
-
-  onFileChange(event: any): void {
-    const files = event.target.files;
-    if (files && files.length > 0) {
-      this.selectedFile = files[0];
-
-      // Avatar önizleme güncelleme
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        if (e.target && e.target.result) {
-          this.student.avatar = e.target.result;
+          console.error('Öğrenci bilgileri yüklenirken hata:', error);
+          this.toastr.error('Öğrenci bilgileri yüklenirken bir sorun oluştu', 'Hata');
+          this.spinner.hide();
         }
-      };
-      // Null kontrolü ekle
-      if (this.selectedFile) {
-        reader.readAsDataURL(this.selectedFile);
-      }
-    }
+      });
   }
 
   onSubmit(): void {
-    if (this.editForm.invalid) {
-      // Form geçersizse tüm kontrolleri dokunulmuş olarak işaretle
-      Object.keys(this.editForm.controls).forEach((key) => {
-        const control = this.editForm.get(key);
-        control?.markAsTouched();
-      });
+    if (this.ogrenciForm.invalid) {
+      this.toastr.warning('Lütfen formu doğru şekilde doldurunuz', 'Uyarı');
       return;
     }
 
     this.isSubmitting = true;
-    this.error = null;
-    this.success = null;
+    this.spinner.show();
 
-    // LocalStorage veya sessionStorage'dan token'ı al
-    let token = '';
-    const userStr =
-      localStorage.getItem('user') || sessionStorage.getItem('user');
-    if (userStr) {
-      const user = JSON.parse(userStr);
-      token = user.token || '';
-    }
+    const formValues = this.ogrenciForm.value;
+    const formData = this.prepareFormData(formValues);
 
     const headers = new HttpHeaders({
-      Authorization: `Bearer ${token}`,
+      'Accept': 'application/json'
     });
 
-    // Önce avatar yükle (eğer varsa)
-    this.uploadAvatar()
-      .then((avatarUrl) => {
-        // Form verilerini hazırla
-        const formData = this.prepareFormData(avatarUrl);
+    // API'ye gönder
+    this.http
+      .post<any>('/server/api/ogrenci_profil.php', formData, { headers })
+      .subscribe({
+        next: (response) => {
+          this.isSubmitting = false;
+          this.spinner.hide();
 
-        // API'ye gönder
-        this.http
-          .post<any>('./server/api/ogrenci_profil.php', formData, { headers })
-          .subscribe({
-            next: (response) => {
-              this.isSubmitting = false;
-
-              if (response.success) {
-                this.success = 'Öğrenci bilgileri başarıyla güncellendi.';
-                // Güncel verileri tekrar yükle
-                setTimeout(() => {
-                  this.loadStudentData();
-                }, 1500);
-              } else {
-                this.error =
-                  response.error || 'Güncelleme sırasında bir hata oluştu.';
-              }
-            },
-            error: (error) => {
-              this.isSubmitting = false;
-              this.error =
-                'Bağlantı hatası: ' +
-                (error.message || 'Bilinmeyen bir hata oluştu.');
-            },
-          });
-      })
-      .catch((error) => {
-        this.isSubmitting = false;
-        this.error = 'Avatar yükleme hatası: ' + error;
+          if (response.success) {
+            this.toastr.success('Öğrenci bilgileri başarıyla güncellendi', 'Başarılı');
+            this.ogrenci = response.data;
+          } else {
+            this.toastr.error(response.error || 'Bir hata oluştu', 'Hata');
+          }
+        },
+        error: (error) => {
+          this.isSubmitting = false;
+          this.spinner.hide();
+          console.error('Güncelleme hatası:', error);
+          this.toastr.error('Öğrenci bilgileri güncellenirken bir hata oluştu', 'Hata');
+        }
       });
   }
 
-  uploadAvatar(): Promise<string> {
-    return new Promise((resolve, reject) => {
-      if (!this.selectedFile) {
-        resolve(this.student.avatar || '');
+  onAvatarChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      this.avatarFile = input.files[0];
+
+      // Dosya boyutu kontrolü (2MB)
+      if (this.avatarFile.size > 2 * 1024 * 1024) {
+        this.toastr.warning('Avatar boyutu 2MB\'dan küçük olmalıdır', 'Uyarı');
+        this.avatarFile = null;
         return;
       }
 
-      // LocalStorage veya sessionStorage'dan token'ı al
-      let token = '';
-      const userStr =
-        localStorage.getItem('user') || sessionStorage.getItem('user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        token = user.token || '';
-      }
-
-      const formData = new FormData();
-      formData.append('avatar', this.selectedFile);
-
-      const headers = new HttpHeaders({
-        Authorization: `Bearer ${token}`,
-      });
-
-      this.http
-        .post<any>('./server/api/ogrenci_guncelle.php', formData, { headers })
-        .subscribe({
-          next: (response) => {
-            if (response.success && response.data && response.data.avatar) {
-              resolve(response.data.avatar);
-            } else {
-              reject(response.error || 'Dosya yüklenemedi.');
-            }
-          },
-          error: (error) => {
-            console.error('Avatar yükleme hatası:', error);
-            reject(error.message || 'Bağlantı hatası.');
-          },
-        });
-    });
+      // Önizleme oluştur
+      const reader = new FileReader();
+      reader.onload = () => {
+        this.avatarPreview = reader.result as string;
+      };
+      reader.readAsDataURL(this.avatarFile);
+    }
   }
 
-  prepareFormData(avatarUrl: string): any {
-    const formValues = this.editForm.value;
-
+  prepareFormData(formValues: any): any {
     const data: any = {
-      id: this.studentId,
-      temel_bilgiler: {
-        adi_soyadi: formValues.adi_soyadi,
-        email: formValues.email,
-        cep_telefonu: formValues.cep_telefonu,
-        aktif: formValues.aktif,
-      },
-      ogrenci_bilgileri: {
-        okulu: formValues.okulu,
-        sinifi: formValues.sinifi,
-        grubu: formValues.grubu,
-        ders_gunu: formValues.ders_gunu,
-        ders_saati: formValues.ders_saati,
-        ucret: formValues.ucret,
-        veli_adi: formValues.veli_adi,
-        veli_cep: formValues.veli_cep,
-      },
+      ogrenci_id: this.ogrenciId,
+      temel_bilgiler: {},
+      detay_bilgiler: {}
     };
 
-    // Avatar ekle (eğer güncellendiyse)
-    if (avatarUrl) {
-      data.temel_bilgiler.avatar = avatarUrl;
-    }
+    // Temel bilgiler
+    data.temel_bilgiler.adi_soyadi = formValues.adi_soyadi;
+    data.temel_bilgiler.email = formValues.email;
+    data.temel_bilgiler.rutbe = formValues.rutbe;
+    data.temel_bilgiler.aktif = formValues.aktif;
 
-    // Şifre ekle (eğer değiştirildiyse)
+    // Şifre boş değilse ekle
     if (formValues.sifre) {
       data.temel_bilgiler.sifre = formValues.sifre;
     }
 
+    // Detay bilgiler
+    data.detay_bilgiler.telefon = formValues.telefon;
+    data.detay_bilgiler.sinif = formValues.sinif;
+    data.detay_bilgiler.okul = formValues.okul;
+    data.detay_bilgiler.adres = formValues.adres;
+    data.detay_bilgiler.dogum_tarihi = formValues.dogum_tarihi;
+
+    // Avatar
+    if (this.avatarPreview) {
+      data.detay_bilgiler.avatar = this.avatarPreview;
+    }
+
     return data;
+  }
+
+  togglePasswordVisibility(): void {
+    this.showPassword = !this.showPassword;
   }
 
   navigateBack(): void {

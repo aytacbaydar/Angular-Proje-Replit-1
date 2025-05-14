@@ -1,67 +1,104 @@
-<?php
-// Avatar yükleme API'si
-require_once '../config.php';
 
-// Sadece POST isteklerine izin ver
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    errorResponse('Sadece POST metoduna izin verilmektedir', 405);
+<?php
+// Hata ayıklama
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+// CORS başlıkları
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+header("Content-Type: application/json; charset=UTF-8");
+
+// OPTIONS isteği için erken yanıt
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
 }
 
-try {
-    // Kullanıcıyı doğrula
-    $user = authorize();
+// Veritabanı bağlantısı
+require_once "../config.php";
+
+// JSON gövdesini al
+$data = json_decode(file_get_contents("php://input"), true);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Kullanıcı kimliği kontrol et
+    if (!isset($data['ogrenci_id']) || empty($data['ogrenci_id'])) {
+        echo json_encode(['success' => false, 'error' => 'Öğrenci ID gerekli']);
+        exit;
+    }
+
+    $ogrenci_id = intval($data['ogrenci_id']);
     
-    // Upload klasörünü kontrol et ve oluştur
-    $uploadDir = '../../avatar/';
-    if (!file_exists($uploadDir)) {
-        if (!mkdir($uploadDir, 0755, true)) {
-            errorResponse('Upload dizini oluşturulamadı', 500);
+    // Temel bilgileri güncelle
+    if (isset($data['temel_bilgiler']) && !empty($data['temel_bilgiler'])) {
+        $temel_bilgiler = $data['temel_bilgiler'];
+        
+        $sql = "UPDATE ogrenciler SET ";
+        $params = [];
+        $updateFields = [];
+        
+        // Hangi alanların güncelleneceğini belirle
+        if (isset($temel_bilgiler['adi_soyadi']) && !empty($temel_bilgiler['adi_soyadi'])) {
+            $updateFields[] = "adi_soyadi = ?";
+            $params[] = $temel_bilgiler['adi_soyadi'];
+        }
+        
+        if (isset($temel_bilgiler['email']) && !empty($temel_bilgiler['email'])) {
+            $updateFields[] = "email = ?";
+            $params[] = $temel_bilgiler['email'];
+        }
+        
+        if (isset($temel_bilgiler['sifre']) && !empty($temel_bilgiler['sifre'])) {
+            $updateFields[] = "sifre = ?";
+            $params[] = password_hash($temel_bilgiler['sifre'], PASSWORD_DEFAULT);
+        }
+        
+        if (isset($temel_bilgiler['rutbe'])) {
+            $updateFields[] = "rutbe = ?";
+            $params[] = $temel_bilgiler['rutbe'];
+        }
+        
+        if (isset($temel_bilgiler['aktif'])) {
+            $updateFields[] = "aktif = ?";
+            $params[] = $temel_bilgiler['aktif'] ? 1 : 0;
+        }
+        
+        // Eğer güncellenecek alan varsa
+        if (!empty($updateFields)) {
+            $sql .= implode(", ", $updateFields);
+            $sql .= " WHERE id = ?";
+            $params[] = $ogrenci_id;
+            
+            $stmt = $conn->prepare($sql);
+            $stmt->execute($params);
         }
     }
+
+    // Güncellenmiş verileri döndür
+    $sql = "SELECT * FROM ogrenciler WHERE id = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->execute([$ogrenci_id]);
+    $ogrenci = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    // Dosya geldi mi kontrol et
-    if (!isset($_FILES['avatar']) || $_FILES['avatar']['error'] !== UPLOAD_ERR_OK) {
-        errorResponse('Dosya yüklenirken bir hata oluştu', 400);
+    if (!$ogrenci) {
+        echo json_encode(['success' => false, 'error' => 'Öğrenci bulunamadı']);
+        exit;
     }
     
-    // Dosya türünü kontrol et
-    $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
-    $fileType = $_FILES['avatar']['type'];
+    // Şifreyi kaldır
+    unset($ogrenci['sifre']);
     
-    if (!in_array($fileType, $allowedTypes)) {
-        errorResponse('Sadece JPEG, PNG ve GIF dosyaları yüklenebilir', 400);
-    }
+    // Yanıt oluştur
+    $response = [
+        'success' => true,
+        'data' => $ogrenci,
+        'message' => 'Öğrenci bilgileri başarıyla güncellendi'
+    ];
     
-    // Dosya boyutunu kontrol et (2MB max)
-    $maxFileSize = 8 * 1024 * 1024; // 2MB
-    if ($_FILES['avatar']['size'] > $maxFileSize) {
-        errorResponse('Dosya boyutu en fazla 2MB olabilir', 400);
-    }
-    
-    // Dosya adını oluştur
-    $fileExtension = pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION);
-    $newFileName = 'avatar_' . $user['id'] . '_' . time() . '.' . $fileExtension;
-    $targetPath = $uploadDir . $newFileName;
-    
-    // Dosyayı taşı
-    if (!move_uploaded_file($_FILES['avatar']['tmp_name'], $targetPath)) {
-        errorResponse('Dosya kaydedilirken bir hata oluştu', 500);
-    }
-    
-    // Veritabanında avatar alanını güncelle
-    $conn = getConnection();
-    $stmt = $conn->prepare("UPDATE ogrenciler SET avatar = :avatar WHERE id = :id");
-    
-    $avatarPath = 'avatar/' . $newFileName;
-    $stmt->bindParam(':avatar', $avatarPath);
-    $stmt->bindParam(':id', $user['id']);
-    $stmt->execute();
-    
-    // Yanıt döndür
-    successResponse(['avatar' => $avatarPath], 'Avatar başarıyla güncellendi');
-    
-} catch (PDOException $e) {
-    errorResponse('Veritabanı hatası: ' . $e->getMessage(), 500);
-} catch (Exception $e) {
-    errorResponse('Beklenmeyen bir hata oluştu: ' . $e->getMessage(), 500);
+    echo json_encode($response);
+} else {
+    echo json_encode(['success' => false, 'error' => 'Geçersiz istek metodu']);
 }

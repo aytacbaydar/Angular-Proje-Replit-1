@@ -1,58 +1,64 @@
-<?php
-// Öğrenci bilgileri API'si
-require_once '../config.php';
 
-// GET isteği: Öğrenci bilgilerini getir
-if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    try {
-        // Kullanıcıyı doğrula
-        $user = authorize();
-        $studentId = isset($_GET['id']) ? intval($_GET['id']) : $user['id'];
-        
-        // Admin değilse, sadece kendi bilgilerini görebilir
-        if ($user['rutbe'] !== 'admin' && $studentId !== $user['id']) {
-            errorResponse('Bu bilgilere erişim yetkiniz yok', 403);
-        }
-        
-        $conn = getConnection();
-        
-        // Öğrenci temel bilgilerini getir
-        $stmt = $conn->prepare("
-            SELECT id, adi_soyadi, email, cep_telefonu, rutbe, aktif, avatar, created_at
-            FROM ogrenciler
-            WHERE id = :id
-        ");
-        $stmt->bindParam(':id', $studentId);
-        $stmt->execute();
-        
-        if ($stmt->rowCount() === 0) {
-            errorResponse('Öğrenci bulunamadı', 404);
-        }
-        
-        $student = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        // Öğrenci detaylı bilgilerini getir
-        $stmt = $conn->prepare("
-            SELECT * FROM ogrenci_bilgileri
-            WHERE ogrenci_id = :ogrenci_id
-        ");
-        $stmt->bindParam(':ogrenci_id', $studentId);
-        $stmt->execute();
-        
-        $studentDetails = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        // Sonuçları birleştir
-        $result = array_merge($student, $studentDetails);
-        
-        successResponse($result);
-        
-    } catch (PDOException $e) {
-        errorResponse('Veritabanı hatası: ' . $e->getMessage(), 500);
-    } catch (Exception $e) {
-        errorResponse('Beklenmeyen bir hata oluştu: ' . $e->getMessage(), 500);
-    }
+<?php
+// Hata ayıklama
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+// CORS başlıkları
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: GET, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+header("Content-Type: application/json; charset=UTF-8");
+
+// OPTIONS isteği için erken yanıt
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
 }
-// Diğer HTTP metodlarını reddet
-else {
-    errorResponse('Bu endpoint sadece GET metodunu desteklemektedir', 405);
+
+// Veritabanı bağlantısı
+require_once "../config.php";
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    // Öğrenci ID'si kontrolü
+    if (!isset($_GET['id']) || empty($_GET['id'])) {
+        echo json_encode(['success' => false, 'error' => 'Öğrenci ID gerekli']);
+        exit;
+    }
+    
+    $ogrenci_id = intval($_GET['id']);
+    
+    // Temel bilgileri al
+    $sql = "SELECT * FROM ogrenciler WHERE id = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->execute([$ogrenci_id]);
+    $ogrenci = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$ogrenci) {
+        echo json_encode(['success' => false, 'error' => 'Öğrenci bulunamadı']);
+        exit;
+    }
+    
+    // Detay bilgileri al
+    $sql = "SELECT * FROM ogrenci_bilgileri WHERE ogrenci_id = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->execute([$ogrenci_id]);
+    $detay = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    // Şifreyi kaldır
+    unset($ogrenci['sifre']);
+    
+    // Yanıt oluştur
+    $response = [
+        'success' => true,
+        'data' => [
+            'temel_bilgiler' => $ogrenci,
+            'detay_bilgiler' => $detay ?: null
+        ]
+    ];
+    
+    echo json_encode($response);
+} else {
+    echo json_encode(['success' => false, 'error' => 'Geçersiz istek metodu']);
 }
