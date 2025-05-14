@@ -54,8 +54,8 @@ try {
    
 
     // 2. DETAY BİLGİLERİ GÜNCELLE
-    if (!empty($data['detay_bilgiler'])) {
-        $detay = $data['detay_bilgiler'];
+    if (!empty($data['ogrenci_bilgileri'])) {
+        $detay = $data['ogrenci_bilgileri'];
         $updateFields = [];
         $params = [];
 
@@ -68,11 +68,26 @@ try {
             }
         }
 
-        $sql = "UPDATE ogrenci_bilgileri SET " . implode(', ', $updateFields) . " WHERE ogrenci_id = :ogrenci_id";
-        $params[':ogrenci_id'] = $studentId;
-        $stmt = $conn->prepare($sql);
-        $stmt->execute($params);
-
+        if (!empty($updateFields)) {
+            // Öğrenci detay kaydı var mı kontrol et
+            $stmt = $conn->prepare("SELECT ogrenci_id FROM ogrenci_bilgileri WHERE ogrenci_id = :ogrenci_id");
+            $stmt->execute([':ogrenci_id' => $studentId]);
+            
+            if ($stmt->rowCount() > 0) {
+                // Güncelle
+                $sql = "UPDATE ogrenci_bilgileri SET " . implode(', ', $updateFields) . " WHERE ogrenci_id = :ogrenci_id";
+            } else {
+                // Yeni kayıt ekle
+                $updateFields = array_map(function($field) {
+                    return str_replace(' = :', '', $field);
+                }, $updateFields);
+                $sql = "INSERT INTO ogrenci_bilgileri (ogrenci_id, " . implode(', ', $updateFields) . ") 
+                        VALUES (:ogrenci_id, :" . implode(', :', $updateFields) . ")";
+            }
+            
+            $params[':ogrenci_id'] = $studentId;
+            $stmt = $conn->prepare($sql);
+            $stmt->execute($params);
         }
     }
 
