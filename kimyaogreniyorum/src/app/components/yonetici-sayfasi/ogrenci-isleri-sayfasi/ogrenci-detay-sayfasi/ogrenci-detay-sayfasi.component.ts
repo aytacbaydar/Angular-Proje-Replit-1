@@ -245,7 +245,7 @@ export class OgrenciDetaySayfasiComponent implements OnInit {
       }
 
       const formData = new FormData();
-      formData.append('file', this.selectedFile);
+      formData.append('avatar', this.selectedFile);
 
       const headers = new HttpHeaders({
         Authorization: `Bearer ${token}`,
@@ -255,8 +255,8 @@ export class OgrenciDetaySayfasiComponent implements OnInit {
         .post<any>('./server/api/ogrenci_guncelle.php', formData, { headers })
         .subscribe({
           next: (response) => {
-            if (response.success && response.data && response.data.file_url) {
-              resolve(response.data.file_url);
+            if (response.success && response.data && response.data.avatar) {
+              resolve(response.data.avatar);
             } else {
               reject(response.error || 'Dosya yüklenemedi.');
             }
