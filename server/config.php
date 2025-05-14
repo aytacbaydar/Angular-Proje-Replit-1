@@ -1,8 +1,23 @@
 <?php
-// Hata ayıklama
+// Veritabanı bağlantı bilgileri
+$db_host = 'localhost';
+$db_name = 'kimyaogreniyorum';
+$db_user = 'root';
+$db_pass = '';
+
+// Hata raporlama
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
+
+// Oturum başlat
+session_start();
+
+// Zaman dilimi ayarı
+date_default_timezone_set('Europe/Istanbul');
+
+// Karakter seti
+header('Content-Type: text/html; charset=utf-8');
 
 // CORS Başlıkları
 header("Access-Control-Allow-Origin: *");
@@ -17,10 +32,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 // Veritabanı Bağlantısı
 try {
-    $host = 'localhost';
-    $dbname = 'kimyaogreniyorum';
-    $username = 'root';
-    $password = '';
+    $host = $db_host;
+    $dbname = $db_name;
+    $username = $db_user;
+    $password = $db_pass;
 
     $conn = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);

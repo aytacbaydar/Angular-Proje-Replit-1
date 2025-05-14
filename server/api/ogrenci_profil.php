@@ -1,221 +1,227 @@
 
 <?php
-// Hata ayıklama
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
-// CORS başlıkları
 header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Content-Type: application/json; charset=UTF-8");
 
-// OPTIONS isteği için erken yanıt
+// OPTIONS isteğine hemen yanıt ver
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
 
+require_once '../config.php';
+
 // Veritabanı bağlantısı
-require_once "../config.php";
+$conn = new PDO("mysql:host=$db_host;dbname=$db_name;charset=utf8", $db_user, $db_pass);
+$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-// JSON gövdesini al
-$data = json_decode(file_get_contents("php://input"), true);
-
+// POST isteği kontrolü
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Kullanıcı kimliği kontrol et
-    if (!isset($data['ogrenci_id']) || empty($data['ogrenci_id'])) {
-        echo json_encode(['success' => false, 'error' => 'Öğrenci ID gerekli']);
+    $input = json_decode(file_get_contents("php://input"), true);
+    
+    if (!isset($input['ogrenci_id']) || empty($input['ogrenci_id'])) {
+        echo json_encode(['success' => false, 'message' => 'Öğrenci ID gerekli!']);
         exit;
     }
-
-    $ogrenci_id = intval($data['ogrenci_id']);
+    
+    $ogrenci_id = $input['ogrenci_id'];
     
     // 1. TEMEL BİLGİLERİ GÜNCELLE
-    if (isset($data['temel_bilgiler']) && !empty($data['temel_bilgiler'])) {
-        $temel_bilgiler = $data['temel_bilgiler'];
-        
-        $sql = "UPDATE ogrenciler SET ";
+    if (isset($input['temel_bilgiler']) && !empty($input['temel_bilgiler'])) {
+        $temel = $input['temel_bilgiler'];
         $params = [];
-        $updateFields = [];
+        $sql = "UPDATE ogrenciler SET ";
         
-        // Hangi alanların güncelleneceğini belirle
-        if (isset($temel_bilgiler['adi_soyadi']) && !empty($temel_bilgiler['adi_soyadi'])) {
-            $updateFields[] = "adi_soyadi = ?";
-            $params[] = $temel_bilgiler['adi_soyadi'];
+        if (isset($temel['ad']) && !empty($temel['ad'])) {
+            $sql .= "ad = ?, ";
+            $params[] = $temel['ad'];
         }
         
-        if (isset($temel_bilgiler['email']) && !empty($temel_bilgiler['email'])) {
-            $updateFields[] = "email = ?";
-            $params[] = $temel_bilgiler['email'];
+        if (isset($temel['soyad']) && !empty($temel['soyad'])) {
+            $sql .= "soyad = ?, ";
+            $params[] = $temel['soyad'];
         }
         
-        if (isset($temel_bilgiler['sifre']) && !empty($temel_bilgiler['sifre'])) {
-            $updateFields[] = "sifre = ?";
-            $params[] = password_hash($temel_bilgiler['sifre'], PASSWORD_DEFAULT);
+        if (isset($temel['email']) && !empty($temel['email'])) {
+            $sql .= "email = ?, ";
+            $params[] = $temel['email'];
         }
         
-        if (isset($temel_bilgiler['rutbe'])) {
-            $updateFields[] = "rutbe = ?";
-            $params[] = $temel_bilgiler['rutbe'];
+        if (isset($temel['telefon']) && !empty($temel['telefon'])) {
+            $sql .= "telefon = ?, ";
+            $params[] = $temel['telefon'];
         }
         
-        if (isset($temel_bilgiler['aktif'])) {
-            $updateFields[] = "aktif = ?";
-            $params[] = $temel_bilgiler['aktif'] ? 1 : 0;
+        if (isset($temel['sinif']) && !empty($temel['sinif'])) {
+            $sql .= "sinif = ?, ";
+            $params[] = $temel['sinif'];
         }
         
-        // Eğer güncellenecek alan varsa
-        if (!empty($updateFields)) {
-            $sql .= implode(", ", $updateFields);
-            $sql .= " WHERE id = ?";
-            $params[] = $ogrenci_id;
-            
+        if (isset($temel['sifre']) && !empty($temel['sifre'])) {
+            $hash = password_hash($temel['sifre'], PASSWORD_DEFAULT);
+            $sql .= "sifre = ?, ";
+            $params[] = $hash;
+        }
+        
+        // Son virgülü kaldır
+        $sql = rtrim($sql, ", ");
+        
+        // WHERE koşulu ekle
+        $sql .= " WHERE id = ?";
+        $params[] = $ogrenci_id;
+        
+        if (count($params) > 1) { // En az bir alan güncelleniyorsa
             $stmt = $conn->prepare($sql);
             $stmt->execute($params);
         }
     }
-
+   
     // 2. DETAY BİLGİLERİ GÜNCELLE
-    if (isset($data['detay_bilgiler']) && !empty($data['detay_bilgiler'])) {
-        $detay_bilgiler = $data['detay_bilgiler'];
+    if (isset($input['detay_bilgiler']) && !empty($input['detay_bilgiler'])) {
+        $detay = $input['detay_bilgiler'];
         
-        // Önce detay bilgilerinin var olup olmadığını kontrol et
-        $sql = "SELECT COUNT(*) FROM ogrenci_bilgileri WHERE ogrenci_id = ?";
-        $stmt = $conn->prepare($sql);
-        $stmt->execute([$ogrenci_id]);
-        $count = $stmt->fetchColumn();
+        // Önce detay kaydı var mı kontrol et
+        $check = $conn->prepare("SELECT id FROM ogrenci_detay WHERE ogrenci_id = ?");
+        $check->execute([$ogrenci_id]);
         
-        if ($count > 0) {
-            // Varsa, güncelle
-            $sql = "UPDATE ogrenci_bilgileri SET ";
+        if ($check->rowCount() > 0) {
+            // Güncelle
+            $sql = "UPDATE ogrenci_detay SET ";
             $params = [];
-            $updateFields = [];
             
-            // Avatar işleme
-            if (isset($detay_bilgiler['avatar']) && !empty($detay_bilgiler['avatar'])) {
-                $updateFields[] = "avatar = ?";
-                $params[] = $detay_bilgiler['avatar'];
+            if (isset($detay['dogum_tarihi'])) {
+                $sql .= "dogum_tarihi = ?, ";
+                $params[] = $detay['dogum_tarihi'];
             }
             
-            // Diğer detay alanlar
-            if (isset($detay_bilgiler['telefon'])) {
-                $updateFields[] = "telefon = ?";
-                $params[] = $detay_bilgiler['telefon'];
+            if (isset($detay['cinsiyet'])) {
+                $sql .= "cinsiyet = ?, ";
+                $params[] = $detay['cinsiyet'];
             }
             
-            if (isset($detay_bilgiler['sinif'])) {
-                $updateFields[] = "sinif = ?";
-                $params[] = $detay_bilgiler['sinif'];
+            if (isset($detay['adres'])) {
+                $sql .= "adres = ?, ";
+                $params[] = $detay['adres'];
             }
             
-            if (isset($detay_bilgiler['okul'])) {
-                $updateFields[] = "okul = ?";
-                $params[] = $detay_bilgiler['okul'];
+            if (isset($detay['il'])) {
+                $sql .= "il = ?, ";
+                $params[] = $detay['il'];
             }
             
-            if (isset($detay_bilgiler['adres'])) {
-                $updateFields[] = "adres = ?";
-                $params[] = $detay_bilgiler['adres'];
+            if (isset($detay['ilce'])) {
+                $sql .= "ilce = ?, ";
+                $params[] = $detay['ilce'];
             }
             
-            if (isset($detay_bilgiler['dogum_tarihi'])) {
-                $updateFields[] = "dogum_tarihi = ?";
-                $params[] = $detay_bilgiler['dogum_tarihi'];
+            if (isset($detay['veli_ad_soyad'])) {
+                $sql .= "veli_ad_soyad = ?, ";
+                $params[] = $detay['veli_ad_soyad'];
             }
             
-            // Eğer güncellenecek alan varsa
-            if (!empty($updateFields)) {
-                $sql .= implode(", ", $updateFields);
-                $sql .= " WHERE ogrenci_id = ?";
-                $params[] = $ogrenci_id;
-                
+            if (isset($detay['veli_telefon'])) {
+                $sql .= "veli_telefon = ?, ";
+                $params[] = $detay['veli_telefon'];
+            }
+            
+            // Son virgülü kaldır
+            $sql = rtrim($sql, ", ");
+            
+            // WHERE koşulu ekle
+            $sql .= " WHERE ogrenci_id = ?";
+            $params[] = $ogrenci_id;
+            
+            if (count($params) > 1) { // En az bir alan güncelleniyorsa
                 $stmt = $conn->prepare($sql);
                 $stmt->execute($params);
             }
         } else {
-            // Yoksa, oluştur
+            // Yeni kayıt oluştur
             $fields = ["ogrenci_id"];
-            $values = ["?"];
-            $params = [$ogrenci_id];
+            $values = [$ogrenci_id];
+            $placeholders = ["?"];
             
-            // Avatar işleme
-            if (isset($detay_bilgiler['avatar']) && !empty($detay_bilgiler['avatar'])) {
-                $fields[] = "avatar";
-                $values[] = "?";
-                $params[] = $detay_bilgiler['avatar'];
-            }
-            
-            // Diğer detay alanlar
-            if (isset($detay_bilgiler['telefon'])) {
-                $fields[] = "telefon";
-                $values[] = "?";
-                $params[] = $detay_bilgiler['telefon'];
-            }
-            
-            if (isset($detay_bilgiler['sinif'])) {
-                $fields[] = "sinif";
-                $values[] = "?";
-                $params[] = $detay_bilgiler['sinif'];
-            }
-            
-            if (isset($detay_bilgiler['okul'])) {
-                $fields[] = "okul";
-                $values[] = "?";
-                $params[] = $detay_bilgiler['okul'];
-            }
-            
-            if (isset($detay_bilgiler['adres'])) {
-                $fields[] = "adres";
-                $values[] = "?";
-                $params[] = $detay_bilgiler['adres'];
-            }
-            
-            if (isset($detay_bilgiler['dogum_tarihi'])) {
+            if (isset($detay['dogum_tarihi'])) {
                 $fields[] = "dogum_tarihi";
-                $values[] = "?";
-                $params[] = $detay_bilgiler['dogum_tarihi'];
+                $values[] = $detay['dogum_tarihi'];
+                $placeholders[] = "?";
             }
             
-            $sql = "INSERT INTO ogrenci_bilgileri (" . implode(", ", $fields) . ") VALUES (" . implode(", ", $values) . ")";
+            if (isset($detay['cinsiyet'])) {
+                $fields[] = "cinsiyet";
+                $values[] = $detay['cinsiyet'];
+                $placeholders[] = "?";
+            }
+            
+            if (isset($detay['adres'])) {
+                $fields[] = "adres";
+                $values[] = $detay['adres'];
+                $placeholders[] = "?";
+            }
+            
+            if (isset($detay['il'])) {
+                $fields[] = "il";
+                $values[] = $detay['il'];
+                $placeholders[] = "?";
+            }
+            
+            if (isset($detay['ilce'])) {
+                $fields[] = "ilce";
+                $values[] = $detay['ilce'];
+                $placeholders[] = "?";
+            }
+            
+            if (isset($detay['veli_ad_soyad'])) {
+                $fields[] = "veli_ad_soyad";
+                $values[] = $detay['veli_ad_soyad'];
+                $placeholders[] = "?";
+            }
+            
+            if (isset($detay['veli_telefon'])) {
+                $fields[] = "veli_telefon";
+                $values[] = $detay['veli_telefon'];
+                $placeholders[] = "?";
+            }
+            
+            $sql = "INSERT INTO ogrenci_detay (" . implode(", ", $fields) . ") VALUES (" . implode(", ", $placeholders) . ")";
             $stmt = $conn->prepare($sql);
-            $stmt->execute($params);
+            $stmt->execute($values);
         }
     }
     
-    // 3. GÜNCELLENMİŞ VERİLERİ DÖNDÜR
-    // Temel bilgileri al
-    $sql = "SELECT * FROM ogrenciler WHERE id = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->execute([$ogrenci_id]);
-    $ogrenci = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    if (!$ogrenci) {
-        echo json_encode(['success' => false, 'error' => 'Öğrenci bulunamadı']);
-        exit;
+    // 3. PROFİL FOTOĞRAFI GÜNCELLE
+    if (isset($input['avatar']) && !empty($input['avatar'])) {
+        $avatar = $input['avatar'];
+        
+        // Base64 kodunu çıkar
+        list($type, $data) = explode(';', $avatar);
+        list(, $data) = explode(',', $data);
+        $data = base64_decode($data);
+        
+        // Hedef klasörü kontrol et ve oluştur
+        $uploadDir = "../uploads/avatars/";
+        if (!file_exists($uploadDir)) {
+            mkdir($uploadDir, 0777, true);
+        }
+        
+        // Dosya adı oluştur
+        $fileName = "avatar_" . $ogrenci_id . "_" . time() . ".png";
+        $filePath = $uploadDir . $fileName;
+        
+        // Dosyayı kaydet
+        file_put_contents($filePath, $data);
+        
+        // Veritabanını güncelle
+        $sql = "UPDATE ogrenciler SET avatar = ? WHERE id = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->execute([$fileName, $ogrenci_id]);
     }
     
-    // Detay bilgileri al
-    $sql = "SELECT * FROM ogrenci_bilgileri WHERE ogrenci_id = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->execute([$ogrenci_id]);
-    $detay = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    // Şifreyi kaldır
-    unset($ogrenci['sifre']);
-    
-    // Yanıt oluştur
-    $response = [
-        'success' => true,
-        'data' => [
-            'temel_bilgiler' => $ogrenci,
-            'detay_bilgiler' => $detay ?: []
-        ],
-        'message' => 'Profil başarıyla güncellendi'
-    ];
-    
-    echo json_encode($response);
+    // Başarılı yanıt döndür
+    echo json_encode(['success' => true, 'message' => 'Profil başarıyla güncellendi']);
 } else {
-    echo json_encode(['success' => false, 'error' => 'Geçersiz istek metodu']);
+    // Hatalı istek metodu
+    echo json_encode(['success' => false, 'message' => 'Geçersiz istek metodu']);
 }
