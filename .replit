@@ -2,3 +2,15 @@ modules = ["nodejs-20", "web", "php-8.2"]
 
 [nix]
 channel = "stable-24_05"
+
+[workflows]
+runButton = "Kimya Öğreniyorum"
+
+[[workflows.workflow]]
+name = "Kimya Öğreniyorum"
+author = 99479
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd server && npm run dev"
