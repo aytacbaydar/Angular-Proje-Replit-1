@@ -51,6 +51,7 @@ try {
             $stmt = $conn->prepare($sql);
             $stmt->execute($params);
         }
+    }
    
 
     // 2. DETAY BİLGİLERİ GÜNCELLE

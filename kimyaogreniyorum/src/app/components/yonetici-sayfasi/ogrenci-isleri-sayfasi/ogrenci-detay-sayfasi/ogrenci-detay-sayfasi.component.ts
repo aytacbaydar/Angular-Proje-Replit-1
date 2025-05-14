@@ -198,7 +198,7 @@ export class OgrenciDetaySayfasiComponent implements OnInit {
 
         // API'ye gönder
         this.http
-          .post<any>('./server/api/ogrenci_profil.php', formData, { headers })
+          .post<any>('/server/api/ogrenci_profil.php', formData, { headers })
           .subscribe({
             next: (response) => {
               this.isSubmitting = false;
@@ -252,7 +252,7 @@ export class OgrenciDetaySayfasiComponent implements OnInit {
       });
 
       this.http
-        .post<any>('./server/api/ogrenci_guncelle.php', formData, { headers })
+        .post<any>('/server/api/ogrenci_guncelle.php', formData, { headers })
         .subscribe({
           next: (response) => {
             if (response.success && response.data && response.data.avatar) {
@@ -300,6 +300,9 @@ export class OgrenciDetaySayfasiComponent implements OnInit {
     // Şifre ekle (eğer değiştirildiyse)
     if (formValues.sifre) {
       data.temel_bilgiler.sifre = formValues.sifre;
+    }
+    
+    return data;ler.sifre = formValues.sifre;
     }
 
     return data;
